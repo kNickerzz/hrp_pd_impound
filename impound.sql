@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXiSTS `h_impounded_vehicles` (
   `reason` text NOT NULL,
   `notes` text,
   `vehicle` text NOT NULL,
-  `identifier` varchar(30) NOT NULL,
+  `citizen_id` varchar(30) NOT NULL,
   PRIMARY KEY (`plate`)
 );
 

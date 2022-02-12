@@ -1,5 +1,4 @@
-_ESX = nil
-TriggerEvent('esx:getSharedObject', function(obj) _ESX = obj end)
+local QBCore = exports['qb-core']:GetCoreObject()
 
 -- Allowed to reset during server restart
 -- You can use this number to calculate a vehicle spawn location index if you have multiple
@@ -15,7 +14,7 @@ RegisterServerEvent('HRP:Impound:UnlockVehicle')
 AddEventHandler('HRP:Impound:ImpoundVehicle', function (form)
 	Citizen.Trace("HRP: Impounding vehicle: " .. form.plate);
 	_source = source;
-	MySQL.Async.execute('INSERT INTO `h_impounded_vehicles` VALUES (@plate, @officer, @mechanic, @releasedate, @fee, @reason, @notes, CONCAT(@vehicle), @identifier, @hold_o, @hold_m)',
+	MySQL.query.await('INSERT INTO `h_impounded_vehicles` VALUES (@plate, @officer, @mechanic, @releasedate, @fee, @reason, @notes, CONCAT(@vehicle), @citizen_id, @hold_o, @hold_m)',
 		{
 			['@plate'] 			= form.plate,
 			['@officer']     	= form.officer,
@@ -25,7 +24,7 @@ AddEventHandler('HRP:Impound:ImpoundVehicle', function (form)
 			['@reason']			= form.reason,
 			['@notes']			= form.notes,
 			['@vehicle']		= form.vehicle,
-			['@identifier']		= form.identifier,
+			['@citizen_id']		= form.citizen_id,
 			['@hold_o']			= form.hold_o,
 			['@hold_m']			= form.hold_m
 		}, function(rowsChanged)
@@ -37,11 +36,11 @@ AddEventHandler('HRP:Impound:ImpoundVehicle', function (form)
 	end)
 end)
 
-AddEventHandler('HRP:Impound:GetImpoundedVehicles', function (identifier)
+AddEventHandler('HRP:Impound:GetImpoundedVehicles', function (citizen_id)
 	_source = source;
-	MySQL.Async.fetchAll('SELECT * FROM `h_impounded_vehicles` WHERE `identifier` = @identifier ORDER BY `releasedate`',
+	MySQL.query.await('SELECT * FROM `h_impounded_vehicles` WHERE `citizen_id` = @citizen_id ORDER BY `releasedate`',
 		{
-			['@identifier'] = identifier,
+			['@citizen_id'] = citizen_id,
 		}, function (impoundedVehicles)
 			TriggerClientEvent('HRP:Impound:SetImpoundedVehicles', _source, impoundedVehicles)
 	end)
@@ -49,13 +48,13 @@ end)
 
 AddEventHandler('HRP:Impound:UnimpoundVehicle', function (plate)
 	_source = source;
-	xPlayer = _ESX.GetPlayerFromId(_source)
+	xPlayer = QBCore.Functions.GetPlayer(_source)
 
 	_UnimpoundedVehicleCount = _UnimpoundedVehicleCount + 1;
 
 	Citizen.Trace('HRP: Unimpounding Vehicle with plate: ' .. plate);
 
-	local veh = MySQL.Sync.fetchAll('SELECT * FROM `h_impounded_vehicles` WHERE `plate` = @plate',
+	local veh = MySQL.query('SELECT * FROM `h_impounded_vehicles` WHERE `plate` = @plate',
 	{
 		['@plate'] = plate,
 	})
@@ -71,7 +70,7 @@ AddEventHandler('HRP:Impound:UnimpoundVehicle', function (plate)
 
 		xPlayer.removeMoney(round(veh[1].fee));
 
-		MySQL.Async.execute('DELETE FROM `h_impounded_vehicles` WHERE `plate` = @plate',
+		MySQL.query.await('DELETE FROM `h_impounded_vehicles` WHERE `plate` = @plate',
 		{
 			['@plate'] = plate,
 		}, function (rows)
@@ -83,13 +82,13 @@ end)
 AddEventHandler('HRP:Impound:GetVehicles', function ()
 	_source = source;
 
-	local vehicles = MySQL.Async.fetchAll('SELECT * FROM `h_impounded_vehicles`', nil, function (vehicles)
+	local vehicles = MySQL.query.await('SELECT * FROM `h_impounded_vehicles`', nil, function (vehicles)
 		TriggerClientEvent('HRP:Impound:SetImpoundedVehicles', _source, vehicles);
 	end);
 end)
 
 AddEventHandler('HRP:Impound:UnlockVehicle', function (plate)
-	MySQL.Async.execute('UPDATE `h_impounded_vehicles` SET `hold_m` = false, `hold_o` = false WHERE `plate` = @plate', {
+	MySQL.query.await('UPDATE `h_impounded_vehicles` SET `hold_m` = false, `hold_o` = false WHERE `plate` = @plate', {
 		['@plate'] = plate
 	}, function (bs)
 		-- Something
@@ -100,13 +99,13 @@ end)
 -- Stupid extra shit because fuck all of this
 -------------------------------------------------------------------------------------------------------------------------------
 RegisterServerEvent('HRP:ESX:GetCharacter')
-AddEventHandler('HRP:ESX:GetCharacter', function (identifier)
+AddEventHandler('HRP:ESX:GetCharacter', function (citizen_id)
 	local _source = source
-	MySQL.Async.fetchAll('SELECT * FROM `users` WHERE `identifier` = @identifier',
+	MySQL.query.await('SELECT * FROM `players` WHERE `citizenid` = @citizenid',
 		{
-			['@identifier'] 		= identifier,
-		}, function(users)
-		TriggerClientEvent('HRP:ESX:SetCharacter', _source, users[1]);
+			['@citizenid'] 		= citizen_id,
+		}, function(players)
+		TriggerClientEvent('HRP:ESX:SetCharacter', _source, players[1]);
 	end)
 end)
 
@@ -114,14 +113,14 @@ RegisterServerEvent('HRP:ESX:GetVehicleAndOwner')
 AddEventHandler('HRP:ESX:GetVehicleAndOwner', function (plate)
 	local _source = source
 	if (Config.NoPlateColumn == false) then
-		MySQL.Async.fetchAll('select * from `owned_vehicles` LEFT JOIN `users` ON users.identifier = owned_vehicles.owner WHERE `plate` = rtrim(@plate)',
+		MySQL.query('select * from `player_vehicles` LEFT JOIN `players` ON players.citizenid = player_vehicles.citizenid WHERE `plate` = rtrim(@plate)',
 			{
 				['@plate'] 		= plate,
 			}, function(vehicleAndOwner)
 			TriggerClientEvent('HRP:ESX:SetVehicleAndOwner', _source, vehicleAndOwner[1]);
 		end)
 	else
-		MySQL.Async.fetchAll('SELECT * FROM `owned_vehicles` LEFT JOIN `users` ON users.identifier = owned_vehicles.owner', {}, function (result)
+		MySQL.query('SELECT * FROM `player_vehicles` LEFT JOIN `players` ON players.citizenid = player_vehicles.citizenid', {}, function (result)
 			for i=1, #result, 1 do
 				local vehicleProps = json.decode(result[i].vehicle)
 
