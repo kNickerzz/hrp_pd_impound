@@ -1,4 +1,4 @@
-Attempt to convert to QB - is currently broken
+**Attempt to convert to QB - it is currently broken
 
 
 ![](https://i.imgur.com/kPUE6CA.jpg)
